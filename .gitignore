@@ -1,0 +1,14 @@
+.env
+.env.*
+!.env.aws.example
+**/.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+*.plan
+tfplan
+*.tfvars
+*.tfvars.json
+crash.log
+crash.*.log
+# Keep .terraform.lock.hcl in version control.
