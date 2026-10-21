@@ -106,8 +106,8 @@ resource "aws_instance" "web" {
     apt-get -o Acquire::Retries=3 update
     apt-get -o Acquire::Retries=3 install -y nginx
     cat > /var/www/html/index.html <<'HTML'
-    <!doctype html><html lang="vi"><meta charset="utf-8"><title>Terraform demo</title>
-    <h1>Xin chào từ Terraform + Nginx!</h1><p>Ubuntu 22.04 · Singapore · dev</p></html>
+    <!doctype html><html lang="en"><meta charset="utf-8"><title>Terraform demo</title>
+    <h1>Hello from Terraform + Nginx!</h1><p>Ubuntu 22.04 · Singapore · Development</p></html>
     HTML
     systemctl enable --now nginx
   SCRIPT
