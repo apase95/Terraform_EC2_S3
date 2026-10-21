@@ -284,7 +284,7 @@ output "web_server_ip" {
 
 ## 5. Cấu hình HCL trong thực tế với AWS (Hands-on Mini Project)
 
-> Trước khi thực hành, xem [cài AWS CLI/Terraform và cấu hình credentials an toàn](AWS-Installation.vi.md). Mã `.tf` bên dưới hiện chỉ nằm trong Markdown, chưa phải các file triển khai.
+> Trước khi thực hành, xem [cài AWS CLI/Terraform và cấu hình credentials an toàn](AWS-Installation.vi.md). Dùng [demo chạy được và hướng dẫn](../terraform/README.md) trong `terraform/`: chỉ HTTP, không SSH, S3 private và giới hạn theo policy lab. Mã bên dưới là ví dụ minh họa cũ, không phải cấu hình để triển khai lab này.
 
 ### System Design: Triển khai Kiến trúc chuẩn (VPC, Subnet, EC2 Web Server & S3)
 Mục tiêu bài thực hành: Thay vì triển khai vào Default VPC ngầm định, chúng ta sẽ xây dựng một kiến trúc mạng chuẩn chỉ và khép kín từ con số 0 trên AWS, bao gồm:
