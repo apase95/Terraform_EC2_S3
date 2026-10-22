@@ -1,28 +1,41 @@
-# IAM cho bài lab Terraform
+# Chuẩn bị quyền AWS cho bài lab
 
-Policy khởi điểm: [`iam/terraform-lab-policy.json`](../iam/terraform-lab-policy.json), tài khoản `565856126571`, Singapore `ap-southeast-1`, AWS provider `~> 5.0`; dành cho mục 5 của [Terraform.md](Terraform.md).
+Phần này dành cho **quản trị viên (admin)**. Người chạy lab dùng IAM user có sẵn `nooby_handsome_OperatorUser` trong tài khoản `565856126571`, không dùng root hoặc khóa admin.
 
-## Admin gắn policy cho IAM user hiện có
+## 1. Admin rà soát user
 
-1. Dùng phiên **admin riêng**, không dùng user lab để tự cấp quyền. Xác nhận đúng tài khoản và user.
-2. Trong **IAM → Users → user → Permissions**, rà soát và gỡ các policy rộng khác (managed/inline), đồng thời bỏ user khỏi các group cấp quyền rộng trước khi gắn policy này. Quyền Allow cộng dồn; policy này không phải permissions boundary hay explicit Deny. Giữ nguyên cơ chế đăng nhập an toàn; không chia sẻ access key.
-3. **IAM → Policies → Create policy → JSON**: dán toàn bộ file JSON, kiểm tra cảnh báo, đặt tên `TerraformLabSingaporeDev`, rồi **Create policy**.
-4. **Users → user → Add permissions → Attach policies directly**: chọn policy vừa tạo, kiểm tra rồi **Add permissions**. Không gắn `AdministratorAccess`, `AmazonEC2FullAccess` hoặc `AmazonS3FullAccess`.
+Đăng nhập bằng phiên admin riêng, vào **IAM → Users → nooby_handsome_OperatorUser → Permissions**. Gỡ các policy rộng gắn trực tiếp/inline và bỏ user khỏi nhóm cấp quyền rộng. Quyền Allow được cộng dồn: gắn policy lab không tự thu hồi quyền đã có.
 
-Các bước trên do admin thực hiện thủ công; không có quyền IAM trong policy lab. Chưa gắn policy hay gọi AWS trong lần soạn này.
+Không gắn `AdministratorAccess`, `AmazonEC2FullAccess` hoặc `AmazonS3FullAccess` để bỏ qua lỗi. Giữ cơ chế đăng nhập an toàn, bật MFA khi phù hợp.
 
-## Điều chỉnh HCL trước khi dùng
+## 2. Tạo hoặc cập nhật policy lab
 
-- Giữ region `ap-southeast-1`, instance `t3.micro`, tag `Environment = "dev"` (phân biệt hoa/thường). Quyền launch instance có điều kiện loại máy và tag; quyền AMI/subnet/SG/volume/network interface được tách riêng để tránh lỗi xác thực đa tài nguyên. Terminate dùng tag dev, không dùng điều kiện loại máy.
-- Đổi ví dụ bucket có hậu tố ngày thành `bucket = "demo-web-assets-565856126571-dev"`. Nếu tên đã bị chiếm, admin phải đồng thời sửa policy và HCL sang tên khác; không mở rộng thành mọi bucket.
-- Bucket mới giữ mặc định AWS **private**, Block Public Access và Object Ownership; dùng **S3 Standard** cho ít ảnh/assets. Không cấu hình ACL public, bucket policy hay website hosting: policy không cho ghi các cấu hình này. Object private không tự trở thành ảnh public cho website; EC2 cũng không tự có quyền S3 (không có instance role/PassRole trong lab).
-- Dùng Terraform trực tiếp với tên bucket đã biết; không cấp `s3:ListAllMyBuckets` để duyệt S3 Console. Xóa hết object trước `terraform destroy`; không bật versioning trong lab này.
-- Giới hạn SSH về IP cá nhân thay vì `0.0.0.0/0` trong ví dụ.
+1. Mở [file policy mẫu](../iam/terraform-lab-policy.json).
+2. Trong **IAM → Policies**, tạo customer managed policy bằng tab **JSON** và dán nội dung file. Nếu đã có policy lab, chọn chỉnh sửa policy đó.
+3. **Trước khi lưu**, tìm statement có Sid `PrivateAssets` và thêm vào danh sách `Action`:
+   - `s3:GetObjectTagging`
+   - `s3:PutObjectTagging`
+4. Giữ nguyên các quyền còn lại, phạm vi bucket/object, region và điều kiện. Kiểm tra cảnh báo JSON rồi lưu với tên `TerraformLabSingaporeDev`; nếu chỉnh sửa, đặt phiên bản vừa lưu làm mặc định.
 
-## Giới hạn quan trọng
+**File mẫu trong repository hiện thiếu hai quyền trên.** Terraform cần chúng để đọc/ghi tag của object; lần apply trước đã gặp lỗi thiếu `s3:GetObjectTagging`. Bổ sung ở policy trên AWS là bước bắt buộc trước khi chạy; không giả định file mẫu đã đủ hoặc policy từ xa đã được sửa.
 
-Đây là policy giới hạn action/region và ARN tài khoản cho mutation EC2, **không phải mức tối thiểu chính xác đã được kiểm chứng với provider thật**. Read EC2 dùng `Resource: "*"` vì các Describe API cần phạm vi đó. Network lifecycle và tagging vẫn có thể tác động tài nguyên khác trong tài khoản/region, kể cả đổi tag instance; tag dev không phải ranh giới bảo mật chống user cố ý sửa tag. AMI ARN không chứa account owner: HCL lọc Canonical `099720109477`, nhưng policy cho phép image ARN trong region, không tự ép owner Canonical. Không cấp sửa instance tùy ý; thay đổi cấu hình ngoài ví dụ có thể cần admin review thêm quyền cụ thể.
+## 3. Gắn policy và cấp khóa cho operator
 
-S3 chỉ đúng bucket/object nói trên, có read cấu hình phục vụ refresh `aws_s3_bucket` v5 và quyền tạo/xóa/tag/object cơ bản; không blanket full access. Các API refresh thực tế có thể thay đổi theo bản provider; nếu AccessDenied, admin cần review action/resource cụ thể, không thay bằng wildcard.
+1. Vào **Users → nooby_handsome_OperatorUser → Add permissions → Attach policies directly**, chọn policy lab rồi xác nhận. Nếu policy đã gắn, kiểm tra đúng policy và phiên bản mặc định.
+2. Admin tạo access key cho chính user operator tại **Security credentials → Access keys → Create access key**, chọn trường hợp CLI phù hợp. Lab không có quyền IAM để tự tạo khóa.
+3. Chuyển khóa qua kênh an toàn để người vận hành nhập vào file riêng trên máy. Secret chỉ hiện lúc tạo; không gửi vào chat, tài liệu, ảnh chụp hoặc Git. Không cấp khóa root/admin cho lab.
+4. Người vận hành tiếp tục [chuẩn bị công cụ và kiểm tra danh tính](AWS-Installation.vi.md), rồi mới [chạy demo](../terraform/README.md).
 
-IAM chỉ giới hạn **loại** instance khi launch, không giới hạn **số lượng**, dung lượng EBS/S3 hoặc tổng hóa đơn. EC2, EBS, public IPv4, truyền dữ liệu và S3 có thể tính phí; không đảm bảo miễn phí hay hard spending cap. Theo dõi Billing/Budgets (cảnh báo không phải chặn chi phí), dọn tài nguyên sau lab. Không đưa credentials hoặc state chứa bí mật vào repository.
+## 4. Phạm vi và cách xử lý lỗi
+
+- Cấu hình hiện tại khóa Singapore `ap-southeast-1`, môi trường `dev`, máy `t3.micro` và bucket `demo-web-assets-565856126571-dev`. Nếu tên bucket đã bị chiếm, dừng để admin rà soát đồng thời policy và giới hạn cấu hình; không đổi tên tùy tiện.
+- S3 giữ mặc định riêng tư, không cấp website public hay ACL public. EC2 không có IAM role để đọc S3; website và ảnh mẫu hoạt động độc lập. Không cần mở SSH.
+- `iam:ListPolicies` bị từ chối là **dự kiến**, không phải bằng chứng gắn sai policy. Lab không được duyệt/quản lý IAM; admin kiểm tra việc gắn policy từ phiên riêng.
+- Không có quyền liệt kê tất cả bucket. Dùng đúng tên bucket trong hướng dẫn chạy, thay vì yêu cầu mở rộng quyền để duyệt Console.
+- Với lỗi AccessDenied khác, gửi admin tên action/resource và thông báo đã che thông tin nhạy cảm. Admin rà soát quyền cụ thể, không thay bằng full access. Hướng dẫn này không chứng nhận policy đã được kiểm thử runtime với AWS provider `~> 5.0`.
+
+## 5. Giới hạn an toàn và chi phí
+
+Đây là policy thu hẹp phạm vi, **không phải ranh giới least privilege tuyệt đối** hay permissions boundary. Các quyền mạng và tagging vẫn có thể ảnh hưởng tài nguyên khác của tài khoản trong Singapore. Tag `dev` không ngăn người có quyền sửa tag; policy ảnh máy cũng không tự ép chủ sở hữu Canonical dù cấu hình hiện tại có lọc.
+
+Giới hạn loại máy không giới hạn số lượng máy, dung lượng EBS/S3 hoặc tổng chi phí. EC2, EBS, IPv4 công khai và truyền dữ liệu có thể tính phí; budget chỉ cảnh báo, không chặn hóa đơn. Sau demo, dọn bằng Terraform và kiểm tra tài nguyên còn sót, kể cả khi apply lỗi. Không xóa state để dọn tài nguyên.

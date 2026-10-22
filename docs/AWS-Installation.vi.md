@@ -1,138 +1,103 @@
-# Chuẩn bị AWS CLI v2 và Terraform (Linux x86_64)
+# Chuẩn bị máy để chạy demo AWS
 
-Phạm vi: cài công cụ, chuẩn bị môi trường; **không triển khai AWS**. Phần 5 của
-[Terraform.md](Terraform.md) chỉ chứa mã HCL trong Markdown, chưa có file `.tf`.
+Làm lần lượt các bước dưới đây. Đây chỉ là hướng dẫn chuẩn bị; **không tự cài công cụ hay triển khai AWS**. Cấu hình chạy được đã có trong [thư mục terraform](../terraform/README.md).
 
-## 1. Cài vào tài khoản người dùng, không sudo
+## 1. Kiểm tra máy và công cụ đã có
 
-Cần Bash, `curl`, `unzip`, `sha256sum`, mạng HTTPS và Linux x86_64 (AWS CLI cần
-glibc; không dùng trực tiếp hướng dẫn này cho Alpine/musl). Kiểm tra `command -v
-aws terraform` trước; nếu đã có, dùng bản đó hoặc đánh giá nâng cấp riêng, không
-ghi đè. Các lệnh dưới đây chạy trong Bash, dừng khi lỗi; có thể cài thành công
-một công cụ rồi thất bại ở công cụ còn lại. Terraform ghim bản ổn định 1.13.5
-(>= 1.5), không khẳng định đây là bản mới nhất.
+Hướng dẫn dành cho Linux x86_64 dùng glibc, với Bash hoặc Zsh. Không dùng gói này cho Alpine/musl, ARM, macOS hay Windows; các máy đó xem [AWS CLI chính thức](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html) và [Terraform chính thức](https://developer.hashicorp.com/terraform/install).
+
+Chạy trong terminal:
 
 ```bash
-bash <<'BASH'
-set -euo pipefail
-[[ "$(uname -sm)" == 'Linux x86_64' ]]
-for tool in curl unzip sha256sum; do command -v "$tool" >/dev/null; done
-for tool in aws terraform; do
-  if command -v "$tool" >/dev/null || [[ -e "$HOME/.local/bin/$tool" || -L "$HOME/.local/bin/$tool" ]]; then
-    printf 'Dừng: %s đã tồn tại; không ghi đè.\n' "$tool" >&2; exit 1
-  fi
-done
-[[ ! -e "$HOME/.local/aws-cli" && ! -L "$HOME/.local/aws-cli" ]]
-work=$(mktemp -d)
-trap 'rm -rf "$work"' EXIT
-mkdir -p "$HOME/.local/bin"
-curl --fail --location --proto '=https' --tlsv1.2 --connect-timeout 15 --max-time 300 \
-  https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip -o "$work/aws.zip"
-unzip -q "$work/aws.zip" -d "$work"
-"$work/aws/install" --install-dir "$HOME/.local/aws-cli" --bin-dir "$HOME/.local/bin"
-v=1.13.5
-base="https://releases.hashicorp.com/terraform/$v"
-for file in "terraform_${v}_linux_amd64.zip" "terraform_${v}_SHA256SUMS"; do
-  curl --fail --location --proto '=https' --tlsv1.2 --connect-timeout 15 --max-time 300 \
-    "$base/$file" -o "$work/$file"
-done
-(cd "$work"; sha256sum --check --ignore-missing "terraform_${v}_SHA256SUMS")
-unzip -q "$work/terraform_${v}_linux_amd64.zip" terraform -d "$work/tf"
-install -m 755 "$work/tf/terraform" "$HOME/.local/bin/terraform"
-BASH
+uname -sm
+command -v aws
+command -v terraform
+```
+
+Nếu có công cụ, kiểm tra riêng bằng `aws --version` và `terraform version`. Môi trường được ghi nhận có AWS CLI **2.38.4**; hãy kiểm tra lại trên máy bạn. Terraform của bài hướng dẫn ghim **1.13.5**, đáp ứng yêu cầu dự án từ 1.5 trở lên, không có nghĩa đây là bản mới nhất.
+
+**Không ghi đè bản đã có.** Nếu thiếu công cụ, cài riêng công cụ đó theo bước sau.
+
+## 2. Cài công cụ còn thiếu, không cần sudo
+
+Cần `curl`, `unzip`, `sha256sum` và kết nối HTTPS. Dùng thư mục tạm mới cho mỗi lần tải.
+
+### AWS CLI v2
+
+Theo [các bước cài Linux chính thức](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html): tải ZIP Linux x86_64 từ AWS vào thư mục tạm, xác minh gói theo hướng dẫn rồi giải nén. Khi chạy bộ cài vừa giải nén, chọn thư mục trong tài khoản người dùng:
+
+```bash
+./aws/install --install-dir "$HOME/.local/aws-cli" --bin-dir "$HOME/.local/bin"
+```
+
+Chỉ chạy trong thư mục tạm chứa bộ cài. Trước đó, bảo đảm `command -v aws` không tìm thấy công cụ và cả `~/.local/aws-cli`, `~/.local/bin/aws` đều chưa tồn tại (kể cả liên kết). Nếu có, dừng để kiểm tra bản cũ; không dùng `sudo` hay tùy chọn ghi đè/cập nhật.
+
+### Terraform 1.13.5
+
+1. Mở [trang phát hành 1.13.5 của HashiCorp](https://releases.hashicorp.com/terraform/1.13.5/), tải `terraform_1.13.5_linux_amd64.zip` và `terraform_1.13.5_SHA256SUMS` vào thư mục tạm mới.
+2. Trong thư mục đó, kiểm tra checksum:
+
+   ```bash
+   sha256sum --check --ignore-missing terraform_1.13.5_SHA256SUMS
+   ```
+
+3. Chỉ tiếp tục nếu đúng file ZIP báo `OK`. Giải nén ZIP, tạo `~/.local/bin` nếu chưa có, rồi đặt file thực thi `terraform` vào đó và cấp quyền chạy. Trước khi chép, bảo đảm `command -v terraform` không tìm thấy công cụ và `~/.local/bin/terraform` chưa tồn tại, kể cả liên kết; không ghi đè.
+
+Chỉ tải từ nguồn chính thức. Checksum phát hiện file hỏng/không khớp, **không chứng minh chữ ký nhà phát hành** khi cùng tải từ một máy chủ. Tài liệu này chưa xác minh PGP cho gói AWS hoặc checksum Terraform; muốn xác thực nguồn phát hành, làm theo [hướng dẫn AWS](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html) và [HashiCorp](https://developer.hashicorp.com/terraform/tutorials/aws-get-started/install-cli) về chữ ký và fingerprint trước khi chạy file tải về.
+
+## 3. Cho terminal tìm thấy công cụ
+
+```bash
 export PATH="$HOME/.local/bin:$PATH"
 aws --version
 terraform version
 ```
 
-Thêm `export PATH="$HOME/.local/bin:$PATH"` một lần vào `~/.bashrc` hoặc
-`~/.zshrc` nếu muốn giữ PATH cho terminal mới. Không chạy toàn bộ khối cài lại
-để nâng cấp: nó chủ động từ chối công cụ đã tồn tại.
+Để giữ PATH cho terminal mới, thêm dòng `export PATH="$HOME/.local/bin:$PATH"` **một lần** vào `~/.bashrc` nếu dùng Bash, hoặc `~/.zshrc` nếu dùng Zsh. Dòng export ở trên có hiệu lực ngay trong terminal hiện tại.
 
-Nguồn tải là AWS và HashiCorp chính thức. SHA256 đối chiếu Terraform phát hiện
-file hỏng/không khớp, **không tương đương xác thực chữ ký**: checksum cùng máy
-chủ vẫn phụ thuộc HTTPS và máy chủ đó. Khối tối giản này chưa xác minh chữ ký
-PGP của AWS ZIP hay checksum Terraform. Với yêu cầu xác thực publisher, hãy
-kiểm tra chữ ký và fingerprint khóa theo hướng dẫn chính thức trước khi chạy:
-[AWS CLI](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html),
-[HashiCorp verification](https://developer.hashicorp.com/terraform/tutorials/aws-get-started/install-cli).
+## 4. Nhờ admin chuẩn bị quyền và khóa
 
-## 2. Các giá trị AWS lấy từ đâu?
+Nhờ admin làm theo [hướng dẫn IAM](IAM-Lab.vi.md), gồm bổ sung hai quyền object tagging vào policy. Admin tạo access key cho `nooby_handsome_OperatorUser`; user lab không có quyền IAM để tự cấp khóa.
 
-Ưu tiên **IAM Identity Center (SSO), credentials tạm thời và MFA**. Không dùng
-access key của root. Nếu lab buộc phải dùng IAM user:
+Không dùng khóa root hoặc admin. Secret chỉ hiện lúc tạo: nhập trực tiếp vào file cục bộ bằng editor, không đưa vào lệnh lưu history, chat, ảnh chụp hay Git. Nếu mất secret, nhờ admin thay khóa; nếu lộ, thu hồi/rotate ngay.
 
-1. Nhờ quản trị viên cấp IAM user với **least privilege**, chỉ tài nguyên/hành
-   động cần cho lab; không gán `AdministratorAccess` cho tiện.
-2. AWS Console → IAM → Users → user của bạn → **Security credentials** →
-   **Access keys** → **Create access key** → trường hợp sử dụng **CLI**.
-3. `AWS_ACCESS_KEY_ID` là ID khóa; `AWS_SECRET_ACCESS_KEY` là secret tương ứng.
-   Secret chỉ xem được lúc tạo. Mất secret thì tạo khóa mới, thay thế và vô hiệu
-   hóa/xóa khóa cũ. Không gửi khóa vào chat, ảnh chụp, Git hay log.
-4. Credentials tạm thời cần thêm `AWS_SESSION_TOKEN` cùng phiên và sẽ hết hạn.
+Nếu tổ chức dùng SSO, nhờ admin cấp phiên có quyền tương đương và xem [hướng dẫn IAM Identity Center](https://docs.aws.amazon.com/cli/latest/userguide/cli-configure-sso.html); không trộn quy trình SSO với khóa môi trường bên dưới.
 
-Region do bạn chọn, **không phải secret**, không được sinh từ access key.
-`ap-southeast-1` là Singapore. `AWS_DEFAULT_REGION` phục vụ CLI;
-`AWS_REGION` và `TF_VAR_aws_region` được đồng bộ vì provider của bài dùng
-`var.aws_region`. AZ của bài mặc định Singapore: file đặt
-`TF_VAR_availability_zone=ap-southeast-1a`. Nếu đổi region, phải chọn lại AZ
-thực sự có sẵn cho tài khoản (không mặc định mọi region đều dùng hậu tố `a`).
+## 5. Tạo file môi trường riêng
 
-## 3. File môi trường riêng
-
-`.env.aws` đã tạo với **credentials trống**; `.env.aws.example` là mẫu chia sẻ.
-Nếu chưa có file local, tạo bằng `cp -n .env.aws.example .env.aws`, không ghi đè
-file chứa khóa. Từ thư mục gốc dự án:
+Mở terminal dành riêng cho lab, tại **thư mục gốc dự án**. Mẫu thực tế là [`.env.aws.example`](../.env.aws.example), các ô khóa để trống. Nếu chưa có `.env.aws`, sao chép không ghi đè:
 
 ```bash
+cp -n .env.aws.example .env.aws
 chmod 600 .env.aws
-# Dùng editor riêng để điền khóa; không gõ secret vào lệnh lưu trong history.
-# Chỉ sau khi điền đầy đủ, trong terminal riêng cho lab:
-unset AWS_PROFILE AWS_DEFAULT_PROFILE AWS_SESSION_TOKEN AWS_SECURITY_TOKEN
-source ./.env.aws
-aws --version
-terraform version
-# Chỉ chạy sau khi đã cấu hình credentials:
-aws sts get-caller-identity --no-cli-pager
 ```
 
-`source` thực thi shell: chỉ source file tin cậy; AWS CLI/Terraform **không tự
-đọc dotenv**. Không dùng `cat .env.aws`, `env`, `set -x` hay in secret để kiểm tra.
-Lệnh STS chỉ kiểm tra danh tính, không tạo hạ tầng; đầu ra có account/ARN nên
-không chia sẻ tùy tiện. Đóng terminal lab để bỏ môi trường tạm. File local bị
-ignore nhưng ignore không bảo vệ file đã từng được Git track; nếu lộ khóa phải
-thu hồi/rotate ngay. State, plans, `.terraform` cũng bị ignore; giữ lockfile
-`.terraform.lock.hcl` khi sau này có dự án Terraform thực tế.
+Nếu file đã tồn tại, giữ nguyên và kiểm tra bằng editor riêng; không in nội dung ra terminal. Điền hai giá trị khóa operator vào các biến đã có. Credentials tạm thời cần thêm `AWS_SESSION_TOKEN` đúng cùng phiên.
 
-### Thay thế bằng SSO (khuyến nghị)
+Mẫu đã export cả `AWS_DEFAULT_REGION`, `AWS_REGION`, `TF_VAR_aws_region` và `TF_VAR_availability_zone`. Giữ region `ap-southeast-1`, AZ mặc định `ap-southeast-1a`; region không phải bí mật và không lấy từ khóa. Các giới hạn khác đã khóa trong cấu hình: account `565856126571`, môi trường `dev`, máy `t3.micro` và đúng bucket lab.
 
-Không source `.env.aws` với khóa trống khi dùng SSO. Mở terminal sạch hoặc bỏ
-credentials môi trường, vì khóa môi trường có thể lấn át profile:
+## 6. Nạp môi trường và kiểm tra đúng danh tính
+
+Sau khi điền khóa, chạy **trong cùng terminal ở thư mục gốc**:
 
 ```bash
-unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_SESSION_TOKEN AWS_SECURITY_TOKEN
-unset AWS_PROFILE AWS_DEFAULT_PROFILE
-aws configure sso --profile lab
-aws sso login --profile lab
-export AWS_PROFILE=lab
-export AWS_DEFAULT_REGION=ap-southeast-1
-export AWS_REGION="$AWS_DEFAULT_REGION"
-export TF_VAR_aws_region="$AWS_DEFAULT_REGION"
-export TF_VAR_availability_zone=ap-southeast-1a
+unset AWS_PROFILE AWS_DEFAULT_PROFILE AWS_SESSION_TOKEN AWS_SECURITY_TOKEN
+unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
+source ./.env.aws
 aws sts get-caller-identity --no-cli-pager
 ```
 
-SSO cần Start URL/Issuer URL, SSO region, account và permission set do tổ chức
-cấp; SSO region có thể khác region triển khai. Không trộn token cũ, khóa IAM
-và profile SSO; đăng nhập lại khi phiên hết hạn.
+Lệnh unset bỏ profile/khóa/token cũ trước khi nạp file. Nếu dùng credentials tạm thời, file phải export lại token mới cùng khóa. `source` thực thi nội dung shell: chỉ nạp file tin cậy; AWS CLI và Terraform không tự đọc file dotenv.
 
-## 4. Trước khi thực hành phần 5
+**Dừng nếu kết quả không khớp cả hai:**
 
-- Sơ đồ ghi SSH từ “My IP”, nhưng mã HCL hiện mở port 22 cho `0.0.0.0/0`.
-  Phải thu hẹp về IP công khai của bạn `/32` hoặc dùng phương án truy cập an
-  toàn phù hợp trước khi triển khai; không copy rồi apply nguyên trạng.
-- EC2, public IPv4, EBS/storage và S3 có thể phát sinh phí; không mặc định lab
-  miễn phí dù instance là `t3.micro`. Kiểm tra giá, quyền và budget trước.
-- Khi chủ động làm lab sau này, xem plan kỹ, hủy tài nguyên bằng
-  `terraform destroy` trong đúng workspace và kiểm tra tài nguyên còn sót.
-  Hướng dẫn onboarding này không chạy `init`, `plan`, `apply` hoặc `destroy`.
+- Account: `565856126571`.
+- Arn: `arn:aws:iam::565856126571:user/nooby_handsome_OperatorUser`.
+
+STS chỉ kiểm tra danh tính, không tạo hạ tầng. Không dùng `env`, `cat .env.aws` hay `set -x` để kiểm tra khóa. Không chia sẻ tùy tiện đầu ra danh tính; đóng terminal khi xong để bỏ môi trường lab. File bị Git ignore vẫn có thể lộ nếu từng được track hoặc chia sẻ.
+
+## 7. Sẵn sàng thực hành
+
+Đọc [mini project](Terraform.md), rồi làm theo [hướng dẫn chạy và dọn demo](../terraform/README.md) khi chủ động muốn triển khai. Lab chỉ mở HTTP, không SSH; S3 riêng tư và không cấp dữ liệu cho website EC2.
+
+EC2, EBS, IPv4 công khai, S3 và truyền dữ liệu có thể tính phí, không tự động miễn phí. Xem plan và chi phí trước khi apply; budget không phải trần chi tiêu. Sau demo hoặc apply lỗi, kiểm tra tài nguyên còn sót và dọn bằng Terraform. Giữ state an toàn để còn destroy, không xóa state để dọn và không commit khóa/state/plan.

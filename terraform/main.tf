@@ -118,6 +118,8 @@ resource "aws_instance" "web" {
 }
 
 # Keep AWS private defaults; no ACL, public policy or public-access-block writes.
+
+
 resource "aws_s3_bucket" "assets" {
   bucket        = var.bucket_name
   force_destroy = false
@@ -130,3 +132,5 @@ resource "aws_s3_object" "demo" {
   content_type = "image/svg+xml"
   content      = "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"240\" height=\"60\"><rect width=\"240\" height=\"60\" fill=\"#172554\"/><text x=\"16\" y=\"38\" fill=\"white\" font-size=\"24\">Terraform demo</text></svg>"
 }
+
+
